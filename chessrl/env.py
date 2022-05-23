@@ -1,18 +1,18 @@
-from typing import Optional, TYPE_CHECKING
-
 import chess
 import gym
 import numpy as np
 
-if TYPE_CHECKING:
-    from chessrl.agent import ChessAgent
+from chessrl.model import ActorCritic
 
 
 class ChessEnv(gym.Env):
-    def __init__(self, opponent: Optional['ChessAgent'] = None):
+    def __init__(self, opponent: ActorCritic):
         self._ready = False
         self.opponent = opponent
         self.board = None
+
+        # from_space -> to_space
+        self.action_space = gym.spaces.Discrete(64 * 64)
 
     def reset(self):
         self.board = chess.Board()
@@ -65,7 +65,27 @@ class ChessEnv(gym.Env):
 
         return done, reward
 
-    def step(self, action):
+    def pi_to_chess_move(self, pi: np.ndarray):
+        # action is a 64x64 array of from->to moves
+        pi = pi.copy()
+        # mask illegal moves
+        pi[~self.get_legal_moves_mask()] = 0.0
+        # from_square_to_square is a tuple of (from_square, to_square)
+        from_square_to_square = np.unravel_index(np.argmax(pi, axis=None), pi.shape)
+        move = chess.Move(*from_square_to_square)
+        return move
+
+    def mask_illegal_moves_from_pi_in_place(self, pi):
+        pi[~self.get_legal_moves_mask().flatten()] = 0.0
+        pi /= pi.sum()
+        return pi
+
+    @staticmethod
+    def int_to_chess_move(i):
+        from_square, to_square = np.unravel_index(i, (64, 64))
+        return chess.Move(from_square, to_square)
+
+    def step(self, action: chess.Move):
         """
         """
         if not self._ready:
@@ -73,20 +93,11 @@ class ChessEnv(gym.Env):
         if not self.opponent:
             raise AssertionError(f'must init with an opponent to call step()')
 
-        if isinstance(action, np.ndarray):
-            # action is a 64x64 array of from->to moves
-            # mask illegal moves
-            action = action[~self.get_legal_moves_mask()] = 0.0
-            # from_to is a tuple of (from_square, to_square)
-            from_to = np.unravel_index(np.argmax(action, axis=None), action.shape)
-            move = chess.Move(*from_to)
-        elif isinstance(action, chess.Move):
-            move = action
-        else:
-            raise TypeError(f'{action} is invalid')
+        if isinstance(action, int):
+            action = self.int_to_chess_move(action)
 
         # make the move
-        self.board.push(move)
+        self.board.push(action)
 
         obs = self.make_obs()
 

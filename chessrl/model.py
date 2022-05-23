@@ -2,15 +2,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class PPOAgent(nn.Module):
+class ActorCritic(nn.Module):
     def __init__(self, in_dim: int, out_dim: int):
-        super(PPOAgent, self).__init__()
+        super(ActorCritic, self).__init__()
         self.in_dim = in_dim
         self.out_dim = out_dim
         self.data = []
 
         self.backbone = nn.Sequential(nn.Flatten(), nn.Linear(in_dim, 128), nn.ReLU())
-        self.actor = nn.Linear(128, self.params.out_dim)
+        self.actor = nn.Linear(128, out_dim)
         self.critic = nn.Linear(128, 1)
 
     @property
